@@ -198,6 +198,23 @@ double CUtils::GetRange(int bars, int start_bar = 0)
 }
 
 //+------------------------------------------------------------------+
+//| Get average range                                                |
+//+------------------------------------------------------------------+
+double CUtils::GetAverageRange(int bars, int start_bar = 0)
+{
+   double total_range = 0;
+   
+   for(int i = start_bar; i < start_bar + bars; i++)
+   {
+      double high = iHigh(_Symbol, m_timeframe, i);
+      double low = iLow(_Symbol, m_timeframe, i);
+      total_range += (high - low);
+   }
+   
+   return total_range / bars;
+}
+
+//+------------------------------------------------------------------+
 //| Check if new bar                                                 |
 //+------------------------------------------------------------------+
 bool CUtils::IsNewBar(void)
@@ -219,6 +236,14 @@ bool CUtils::IsNewBar(void)
 datetime CUtils::GetBarTime(int bar_index = 0)
 {
    return iTime(_Symbol, m_timeframe, bar_index);
+}
+
+//+------------------------------------------------------------------+
+//| Get bar index from time                                          |
+//+------------------------------------------------------------------+
+int CUtils::GetBarIndex(datetime time)
+{
+   return iBarShift(_Symbol, m_timeframe, time);
 }
 
 //+------------------------------------------------------------------+
@@ -246,6 +271,14 @@ double CUtils::GetSpread(void)
 }
 
 //+------------------------------------------------------------------+
+//| Get symbol description                                           |
+//+------------------------------------------------------------------+
+string CUtils::GetSymbolDescription(void)
+{
+   return SymbolInfoString(_Symbol, SYMBOL_DESCRIPTION);
+}
+
+//+------------------------------------------------------------------+
 //| Check if market is open                                          |
 //+------------------------------------------------------------------+
 bool CUtils::IsMarketOpen(void)
@@ -265,6 +298,18 @@ bool CUtils::IsTradingAllowed(void)
 }
 
 //+------------------------------------------------------------------+
+//| Get market distance                                              |
+//+------------------------------------------------------------------+
+double CUtils::GetMarketDistance(bool is_buy)
+{
+   double current_price = is_buy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double freeze_level = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_FREEZE_LEVEL) * _Point;
+   double stops_level = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL) * _Point;
+   
+   return MathMax(freeze_level, stops_level);
+}
+
+//+------------------------------------------------------------------+
 //| Normalize price                                                  |
 //+------------------------------------------------------------------+
 double CUtils::NormalizePrice(double price)
@@ -278,6 +323,14 @@ double CUtils::NormalizePrice(double price)
 double CUtils::CalculateDistance(double price1, double price2)
 {
    return MathAbs(price1 - price2) / _Point;
+}
+
+//+------------------------------------------------------------------+
+//| Check if within range                                            |
+//+------------------------------------------------------------------+
+bool CUtils::IsWithinRange(double value, double min_val, double max_val)
+{
+   return value >= min_val && value <= max_val;
 }
 
 //+------------------------------------------------------------------+
@@ -304,4 +357,46 @@ string CUtils::TimeToStringOptimal(datetime time)
 //+------------------------------------------------------------------+
 string CUtils::BoolToString(bool value)
 {
-   return value
+   return value ? "true" : "false";
+}
+
+//+------------------------------------------------------------------+
+//| Save global variable                                             |
+//+------------------------------------------------------------------+
+bool CUtils::SaveGlobalVariable(string name, double value)
+{
+   string var_name = _Symbol + "_" + name;
+   return GlobalVariableSet(var_name, value) == 0;
+}
+
+//+------------------------------------------------------------------+
+//| Load global variable                                             |
+//+------------------------------------------------------------------+
+double CUtils::LoadGlobalVariable(string name, double default_value = 0)
+{
+   string var_name = _Symbol + "_" + name;
+   
+   if(GlobalVariableCheck(var_name))
+   {
+      return GlobalVariableGet(var_name);
+   }
+   
+   return default_value;
+}
+
+//+------------------------------------------------------------------+
+//| Delete global variable                                           |
+//+------------------------------------------------------------------+
+bool CUtils::DeleteGlobalVariable(string name)
+{
+   string var_name = _Symbol + "_" + name;
+   return GlobalVariableDel(var_name);
+}
+
+//+------------------------------------------------------------------+
+//| Update last bar time                                             |
+//+------------------------------------------------------------------+
+void CUtils::UpdateLastBarTime(void)
+{
+   m_lastBarTime = (int)iTime(_Symbol, m_timeframe, 0);
+}
