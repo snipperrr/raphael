@@ -1,0 +1,48 @@
+# MetaTrader 5 files
+*.log
+*.tmp
+*.bak
+*.old
+*.mqproj
+
+# Build artifacts
+build/*.ex5
+build/*.exp
+build/*.lib
+
+# Logs
+logs/*.log
+logs/*.txt
+
+# Test results
+tests/*.htm
+tests/*.html
+tests/*.gif
+tests/*.tst
+
+# Backup files
+*~
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+
+# Temporary files
+temp/
+tmp/
+
+# Personal settings
+config/personal-*.json
+*.personal.*
