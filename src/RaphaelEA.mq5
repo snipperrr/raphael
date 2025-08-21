@@ -48,7 +48,7 @@ input bool ShowTradeInfo = true;                     // Show trade information i
 //| Global Variables                                                 |
 //+------------------------------------------------------------------+
 CRaphaelEA* g_ea = NULL;
-CTrade trade;
+CTrade g_trade;
 
 ulong buyPos, sellPos;
 int totalBars;
@@ -61,10 +61,10 @@ double baseLotSize;
 int OnInit()
 {
    // Initialize trade object
-   trade.SetExpertMagicNumber(Magic);
-   if(!trade.SetTypeFillingBySymbol(_Symbol))
+   g_trade.SetExpertMagicNumber(Magic);
+   if(!g_trade.SetTypeFillingBySymbol(_Symbol))
    {
-      trade.SetTypeFilling(ORDER_FILLING_RETURN);
+      g_trade.SetTypeFilling(ORDER_FILLING_RETURN);
    }
 
    // Initialize balance and lot size variables
@@ -106,6 +106,12 @@ int OnInit()
    g_ea.SetExponentialGrowth(UseExponentialGrowth);
    g_ea.SetAggressiveMultiplier(AggressiveMultiplier);
    g_ea.SetGrowthPower(GrowthPower);
+   g_ea.SetRiskPercent(RiskPercent);
+   g_ea.SetBaseLotSize(baseLotSize);
+   g_ea.SetTradingParameters(OrderDistPoints, TpPoints, SlPoints, TslPoints, TslTriggerPoints);
+   g_ea.SetTimeframe(Timeframe);
+   g_ea.SetBarsLookback(BarsN);
+   g_ea.SetExpirationHours(ExpirationHours);
 
    // Initialize EA
    if(!g_ea.Initialize())
@@ -164,6 +170,13 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 void OnTick()
 {
+   if(g_ea && CheckPointer(g_ea))
+   {
+      g_ea.OnTick();
+      return;
+   }
+   
+   // Fallback implementation if EA class is not available
    // Process positions with trailing stop
    processPos(buyPos);
    processPos(sellPos);
@@ -211,7 +224,13 @@ void OnTradeTransaction(
    const MqlTradeResult&         result
    )
 {
+   if(g_ea && CheckPointer(g_ea))
+   {
+      g_ea.OnTradeTransaction(trans, request, result);
+      return;
+   }
    
+   // Fallback implementation
    if(trans.type == TRADE_TRANSACTION_ORDER_ADD)
    {
       COrderInfo order;
@@ -332,7 +351,7 @@ void processPos(ulong &posTicket)
             
             if(sl > pos.StopLoss())
             {
-               trade.PositionModify(pos.Ticket(), sl, pos.TakeProfit());
+               g_trade.PositionModify(pos.Ticket(), sl, pos.TakeProfit());
             }
          }
       }
@@ -347,7 +366,7 @@ void processPos(ulong &posTicket)
             
             if(sl < pos.StopLoss() || pos.StopLoss() == 0)
             {
-               trade.PositionModify(pos.Ticket(), sl, pos.TakeProfit());
+               g_trade.PositionModify(pos.Ticket(), sl, pos.TakeProfit());
             }
          }
       }
@@ -396,9 +415,9 @@ void executeBuy(double entry)
    Print("   Final Lot Size: ", DoubleToString(lots, 3));
    Print("   Growth Factor: ", DoubleToString(lots/baseLotSize, 2), "x");
    
-   trade.BuyStop(lots, entry, _Symbol, sl, tp, ORDER_TIME_SPECIFIED, expiration);
+   g_trade.BuyStop(lots, entry, _Symbol, sl, tp, ORDER_TIME_SPECIFIED, expiration);
    
-   buyPos = trade.ResultOrder();
+   buyPos = g_trade.ResultOrder();
 }
 
 //+------------------------------------------------------------------+
@@ -443,9 +462,9 @@ void executeSell(double entry)
    Print("   Final Lot Size: ", DoubleToString(lots, 3));
    Print("   Growth Factor: ", DoubleToString(lots/baseLotSize, 2), "x");
 
-   trade.SellStop(lots, entry, _Symbol, sl, tp, ORDER_TIME_SPECIFIED, expiration);
+   g_trade.SellStop(lots, entry, _Symbol, sl, tp, ORDER_TIME_SPECIFIED, expiration);
    
-   sellPos = trade.ResultOrder();
+   sellPos = g_trade.ResultOrder();
 }
 
 //+------------------------------------------------------------------+
@@ -579,7 +598,7 @@ void ScanExistingPositions()
          if(pos.Magic() != Magic) continue;
          if(pos.Symbol() != _Symbol) continue;
 
-         Print(__FUNCTION__, " > Found open position with ticket #", pos.Ticket(), "...");
+         Print(__FUNCTION__, " > Found open position with ticket #", IntegerToString(pos.Ticket()), "...");
          if(pos.PositionType() == POSITION_TYPE_BUY) buyPos = pos.Ticket();
          if(pos.PositionType() == POSITION_TYPE_SELL) sellPos = pos.Ticket();
       }
@@ -599,7 +618,7 @@ void ScanExistingOrders()
          if(order.Magic() != Magic) continue;
          if(order.Symbol() != _Symbol) continue;
 
-         Print(__FUNCTION__, " > Found pending order with ticket #", order.Ticket(), "...");
+         Print(__FUNCTION__, " > Found pending order with ticket #", IntegerToString(order.Ticket()), "...");
          if(order.OrderType() == ORDER_TYPE_BUY_STOP) buyPos = order.Ticket();
          if(order.OrderType() == ORDER_TYPE_SELL_STOP) sellPos = order.Ticket();
       }
@@ -638,11 +657,11 @@ void UpdateChartComment()
    
    // Position information
    comment += "=== POSITION INFO ===\n";
-   comment += "Buy Position: " + (buyPos > 0 ? "#" + ULongToString(buyPos) : "None") + "\n";
-   comment += "Sell Position: " + (sellPos > 0 ? "#" + ULongToString(sellPos) : "None") + "\n";
+   comment += "Buy Position: " + (buyPos > 0 ? "#" + IntegerToString((int)buyPos) : "None") + "\n";
+   comment += "Sell Position: " + (sellPos > 0 ? "#" + IntegerToString((int)sellPos) : "None") + "\n";
    
    // Market information
-   double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
+   double spread = (double)SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
    comment += "\n=== MARKET INFO ===\n";
    comment += "Spread: " + DoubleToString(spread, 1) + " points\n";
    comment += "Bid: " + DoubleToString(SymbolInfoDouble(_Symbol, SYMBOL_BID), _Digits) + "\n";

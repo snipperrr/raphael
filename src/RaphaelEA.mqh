@@ -108,6 +108,12 @@ public:
    void             PrintStatus(void);
    void             SaveSettings(void);
    bool             LoadSettings(void);
+   string           GetAccountStats(void);
+   bool             IsTradingAllowed(void);
+   int              GetPositionCount(void);
+   int              GetOrderCount(void);
+   double           GetTotalProfit(void);
+   void             EmergencyCloseAll(void);
    
 private:
    // Internal helper methods
@@ -118,6 +124,7 @@ private:
    void             ScanExistingPositions(void);
    void             ScanExistingOrders(void);
    double           CalculateLotSize(double stop_loss_points);
+   double           NormalizeLotSize(double lot_size);
    bool             IsNewBar(void);
    void             UpdateChartComment(void);
    string           GetGlobalVariableName(string suffix);
@@ -316,12 +323,12 @@ void CRaphaelEA::OnTradeTransaction(const MqlTradeTransaction& trans,
             if(order.OrderType() == ORDER_TYPE_BUY_STOP)
             {
                m_buyPosition = order.Ticket();
-               if(m_logger) m_logger.Trade("Buy stop order placed: #" + ULongToString(order.Ticket()));
+               if(m_logger) m_logger.Trade("Buy stop order placed: #" + IntegerToString((int)order.Ticket()));
             }
             else if(order.OrderType() == ORDER_TYPE_SELL_STOP)
             {
                m_sellPosition = order.Ticket();
-               if(m_logger) m_logger.Trade("Sell stop order placed: #" + ULongToString(order.Ticket()));
+               if(m_logger) m_logger.Trade("Sell stop order placed: #" + IntegerToString((int)order.Ticket()));
             }
          }
       }
@@ -395,18 +402,7 @@ double CRaphaelEA::CalculateScaledLotSize(void)
       scaledLots = m_baseLotSize * balanceRatio * m_aggressiveMultiplier;
    }
    
-   // Normalize volume
-   double minVol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN);
-   double maxVol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MAX);
-   double stepVol = SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_STEP);
-   
-   if(stepVol > 0)
-      scaledLots = MathRound(scaledLots / stepVol) * stepVol;
-   
-   scaledLots = MathMax(scaledLots, minVol);
-   scaledLots = MathMin(scaledLots, maxVol);
-   
-   return scaledLots;
+   return NormalizeLotSize(scaledLots);
 }
 
 //+------------------------------------------------------------------+
@@ -428,10 +424,13 @@ bool CRaphaelEA::ExecuteBuyOrder(double entry_price)
    if(m_tradeManager)
    {
       bool result = m_tradeManager.ExecuteBuyStopOrder(entry_price, lots);
-      if(result && m_logger)
+      if(result)
       {
-         m_logger.Trade("Buy order executed: Price=" + DoubleToString(entry_price, _Digits) + 
-                       ", Lots=" + DoubleToString(lots, 3));
+         if(m_logger)
+         {
+            m_logger.Trade("Buy order executed: Price=" + DoubleToString(entry_price, _Digits) + 
+                          ", Lots=" + DoubleToString(lots, 3));
+         }
       }
       return result;
    }
@@ -458,10 +457,13 @@ bool CRaphaelEA::ExecuteSellOrder(double entry_price)
    if(m_tradeManager)
    {
       bool result = m_tradeManager.ExecuteSellStopOrder(entry_price, lots);
-      if(result && m_logger)
+      if(result)
       {
-         m_logger.Trade("Sell order executed: Price=" + DoubleToString(entry_price, _Digits) + 
-                       ", Lots=" + DoubleToString(lots, 3));
+         if(m_logger)
+         {
+            m_logger.Trade("Sell order executed: Price=" + DoubleToString(entry_price, _Digits) + 
+                          ", Lots=" + DoubleToString(lots, 3));
+         }
       }
       return result;
    }
@@ -596,8 +598,8 @@ void CRaphaelEA::PrintStatus(void)
       Print("Exponential Growth: " + (m_useExponentialGrowth ? "Enabled" : "Disabled"));
       Print("Aggressive Multiplier: " + DoubleToString(m_aggressiveMultiplier, 1));
       Print("Growth Power: " + DoubleToString(m_growthPower, 1));
-      Print("Buy Position: " + ULongToString(m_buyPosition));
-      Print("Sell Position: " + ULongToString(m_sellPosition));
+      Print("Buy Position: " + IntegerToString((int)m_buyPosition));
+      Print("Sell Position: " + IntegerToString((int)m_sellPosition));
       Print("======================");
       return;
    }
@@ -612,8 +614,8 @@ void CRaphaelEA::PrintStatus(void)
    m_logger.Info("Exponential Growth: " + (m_useExponentialGrowth ? "Enabled" : "Disabled"));
    m_logger.Info("Aggressive Multiplier: " + DoubleToString(m_aggressiveMultiplier, 1));
    m_logger.Info("Growth Power: " + DoubleToString(m_growthPower, 1));
-   m_logger.Info("Buy Position: " + ULongToString(m_buyPosition));
-   m_logger.Info("Sell Position: " + ULongToString(m_sellPosition));
+   m_logger.Info("Buy Position: " + IntegerToString((int)m_buyPosition));
+   m_logger.Info("Sell Position: " + IntegerToString((int)m_sellPosition));
    m_logger.Info("======================");
 }
 
@@ -744,7 +746,7 @@ void CRaphaelEA::ScanExistingPositions(void)
          if(pos.Magic() != m_magicNumber || pos.Symbol() != _Symbol)
             continue;
 
-         if(m_logger) m_logger.Info("Found open position: #" + ULongToString(pos.Ticket()));
+         if(m_logger) m_logger.Info("Found open position: #" + IntegerToString((int)pos.Ticket()));
          
          if(pos.PositionType() == POSITION_TYPE_BUY)
             m_buyPosition = pos.Ticket();
@@ -767,7 +769,7 @@ void CRaphaelEA::ScanExistingOrders(void)
          if(order.Magic() != m_magicNumber || order.Symbol() != _Symbol)
             continue;
 
-         if(m_logger) m_logger.Info("Found pending order: #" + ULongToString(order.Ticket()));
+         if(m_logger) m_logger.Info("Found pending order: #" + IntegerToString((int)order.Ticket()));
          
          if(order.OrderType() == ORDER_TYPE_BUY_STOP)
             m_buyPosition = order.Ticket();
@@ -901,13 +903,13 @@ void CRaphaelEA::UpdateChartComment(void)
    
    // Position information
    comment += "=== POSITION INFO ===\n";
-   comment += "Buy Position: " + (m_buyPosition > 0 ? "#" + ULongToString(m_buyPosition) : "None") + "\n";
-   comment += "Sell Position: " + (m_sellPosition > 0 ? "#" + ULongToString(m_sellPosition) : "None") + "\n";
+   comment += "Buy Position: " + (m_buyPosition > 0 ? "#" + IntegerToString((int)m_buyPosition) : "None") + "\n";
+   comment += "Sell Position: " + (m_sellPosition > 0 ? "#" + IntegerToString((int)m_sellPosition) : "None") + "\n";
    
    // Market information
-   double spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
+   long spread = SymbolInfoInteger(_Symbol, SYMBOL_SPREAD);
    comment += "\n=== MARKET INFO ===\n";
-   comment += "Spread: " + DoubleToString(spread, 1) + " points\n";
+   comment += "Spread: " + DoubleToString((double)spread, 1) + " points\n";
    comment += "Bid: " + DoubleToString(SymbolInfoDouble(_Symbol, SYMBOL_BID), _Digits) + "\n";
    comment += "Ask: " + DoubleToString(SymbolInfoDouble(_Symbol, SYMBOL_ASK), _Digits) + "\n";
    
@@ -949,7 +951,7 @@ void CRaphaelEA::SetTradingParameters(int order_dist, int tp, int sl, int tsl, i
 }
 
 //+------------------------------------------------------------------+
-//| Additional utility method - Get account statistics              |
+//| Get account statistics                                           |
 //+------------------------------------------------------------------+
 string CRaphaelEA::GetAccountStats(void)
 {
