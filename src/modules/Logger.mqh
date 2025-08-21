@@ -6,6 +6,11 @@
 #property copyright "Copyright 2025, RaphaelEA"
 #property version   "2.1"
 
+// Define EA_VERSION if not already defined
+#ifndef EA_VERSION
+#define EA_VERSION "2.1"
+#endif
+
 //+------------------------------------------------------------------+
 //| CLogger Class                                                    |
 //+------------------------------------------------------------------+
