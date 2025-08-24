@@ -1,0 +1,12 @@
+{
+  // Account-specific settings for the Expert Advisor
+  // IMPORTANT: Avoid storing sensitive information like passwords directly in this file.
+  // Use secure methods provided by your trading platform or environment for credentials.
+
+  "AccountID": "YOUR_ACCOUNT_ID_HERE", // Your trading account number
+  "Broker": "YourBrokerName",          // Name of your broker
+  "Server": "YourBrokerServerName",    // Trading server name (e.g., "MetaQuotes-Demo")
+  "InitialDeposit": 10000.00,          // Initial deposit amount for reference (e.g., for backtesting)
+  "Currency": "USD",                   // Account currency (e.g., "USD", "EUR", "JPY")
+  "Leverage": "1:500"                  // Account leverage (e.g., "1:100", "1:500")
+}

@@ -1,0 +1,15 @@
+{
+  // Global risk management settings for the Expert Advisor.
+  // These settings can act as an overarching control for risk across multiple EAs or strategies.
+
+  "GlobalRiskPercentPerTrade": 1.0, // Maximum percentage of account balance to risk per trade (e.g., 1.0 for 1%)
+  "MaxDailyLossPercent": 5.0,       // Maximum percentage of account balance allowed to be lost in a single day
+  "MaxDrawdownPercent": 10.0,       // Maximum percentage of account balance allowed to be drawn down from peak equity
+  "MaxOpenPositions": 5,            // Maximum number of concurrent open positions allowed
+  "MaxTotalLots": 10.0,             // Maximum total lot size across all open positions
+  "EnableNewsFilter": true,         // Enable or disable trading during high-impact news events
+  "NewsSources": [                  // List of news sources to monitor (e.g., "ForexFactory", "DailyFX")
+    "ForexFactory"
+  ],
+  "HighImpactNewsOnly": true        // Only filter high-impact news events
+}

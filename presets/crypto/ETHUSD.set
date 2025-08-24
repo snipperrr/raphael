@@ -1,0 +1,14 @@
+Lots=0.01
+RiskPercent=1.0
+UseBalanceScaling=true
+AggressiveMultiplier=1.5
+UseExponentialGrowth=true
+GrowthPower=1.6
+OrderDistPoints=5000
+TpPoints=10000
+SlPoints=5000
+TslPoints=1000
+TslTriggerPoints=2000
+Timeframe=60
+BarsN=5
+ExpirationHours=50

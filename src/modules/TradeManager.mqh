@@ -6,7 +6,7 @@
 #property copyright "Copyright 2025, RaphaelEA"
 #property version   "2.1"
 
-#include <Trade/Trade.mqh>
+
 
 //+------------------------------------------------------------------+
 //| CTradeManager Class                                              |
@@ -23,6 +23,7 @@ private:
    int              m_trailingTriggerPoints;
    int              m_expirationHours;
    ENUM_TIMEFRAMES  m_timeframe;
+   ulong            m_lastResultOrder; // To store the last order ticket
    
 public:
    // Constructor
@@ -44,47 +45,24 @@ public:
    
    // Getter methods
    int              GetMagicNumber(void) const { return m_magicNumber; }
-   int              GetOrderDistance(void) const { return m_orderDistancePoints; }
-   int              GetTakeProfit(void) const { return m_takeProfitPoints; }
-   int              GetStopLoss(void) const { return m_stopLossPoints; }
-   int              GetTrailingStop(void) const { return m_trailingStopPoints; }
-   int              GetTrailingTrigger(void) const { return m_trailingTriggerPoints; }
+   ulong            GetLastResultOrder(void) const { return m_lastResultOrder; }
    
    // Order execution methods
    bool             ExecuteBuyStopOrder(double entry_price, double lot_size);
    bool             ExecuteSellStopOrder(double entry_price, double lot_size);
-   bool             ExecuteBuyOrder(double lot_size);
-   bool             ExecuteSellOrder(double lot_size);
    
    // Position management methods
    void             ProcessPosition(ulong position_ticket);
    bool             ModifyPosition(ulong ticket, double stop_loss, double take_profit);
    bool             ClosePosition(ulong ticket);
-   bool             CloseAllPositions(void);
-   
-   // Order management methods
-   bool             ModifyOrder(ulong ticket, double price, double stop_loss, double take_profit);
-   bool             DeleteOrder(ulong ticket);
-   bool             DeleteAllOrders(void);
-   
-   // Information methods
-   bool             IsPositionOpen(ulong ticket);
-   bool             IsOrderPending(ulong ticket);
-   int              GetPositionsCount(void);
-   int              GetOrdersCount(void);
-   double           GetPositionProfit(ulong ticket);
-   double           GetTotalProfit(void);
-   
-   // Utility methods
-   datetime         CalculateExpiration(void);
-   double           CalculateTakeProfit(double entry_price, bool is_buy);
-   double           CalculateStopLoss(double entry_price, bool is_buy);
-   bool             ValidatePrice(double price, bool is_buy);
-   
+
 private:
    void             SetupTradeFilling(void);
    bool             ValidateTradeRequest(double entry_price, double lot_size, bool is_buy);
    void             LogTradeOperation(string operation, double price, double lot_size);
+   datetime         CalculateExpiration(void);
+   double           CalculateTakeProfit(double entry_price, bool is_buy);
+   double           CalculateStopLoss(double entry_price, bool is_buy);
 };
 
 //+------------------------------------------------------------------+
@@ -100,6 +78,7 @@ CTradeManager::CTradeManager(void)
    m_trailingTriggerPoints = DEFAULT_TSL_TRIGGER_POINTS;
    m_expirationHours = DEFAULT_EXPIRATION_HOURS;
    m_timeframe = PERIOD_H1;
+   m_lastResultOrder = 0;
 }
 
 //+------------------------------------------------------------------+
@@ -116,9 +95,7 @@ bool CTradeManager::Initialize(int magic_number)
 {
    m_magicNumber = magic_number;
    m_trade.SetExpertMagicNumber(m_magicNumber);
-   
    SetupTradeFilling();
-   
    return true;
 }
 
@@ -127,6 +104,7 @@ bool CTradeManager::Initialize(int magic_number)
 //+------------------------------------------------------------------+
 bool CTradeManager::ExecuteBuyStopOrder(double entry_price, double lot_size)
 {
+   m_lastResultOrder = 0;
    if(!ValidateTradeRequest(entry_price, lot_size, true))
       return false;
    
@@ -142,7 +120,12 @@ bool CTradeManager::ExecuteBuyStopOrder(double entry_price, double lot_size)
    
    LogTradeOperation("BUY STOP", entry_price, lot_size);
    
-   return m_trade.BuyStop(lot_size, entry_price, _Symbol, stop_loss, take_profit, ORDER_TIME_SPECIFIED, expiration);
+   bool result = m_trade.BuyStop(lot_size, entry_price, _Symbol, stop_loss, take_profit, ORDER_TIME_SPECIFIED, expiration);
+   if(result)
+   {
+      m_lastResultOrder = m_trade.ResultOrder();
+   }
+   return result;
 }
 
 //+------------------------------------------------------------------+
@@ -150,6 +133,7 @@ bool CTradeManager::ExecuteBuyStopOrder(double entry_price, double lot_size)
 //+------------------------------------------------------------------+
 bool CTradeManager::ExecuteSellStopOrder(double entry_price, double lot_size)
 {
+   m_lastResultOrder = 0;
    if(!ValidateTradeRequest(entry_price, lot_size, false))
       return false;
    
@@ -165,7 +149,12 @@ bool CTradeManager::ExecuteSellStopOrder(double entry_price, double lot_size)
    
    LogTradeOperation("SELL STOP", entry_price, lot_size);
    
-   return m_trade.SellStop(lot_size, entry_price, _Symbol, stop_loss, take_profit, ORDER_TIME_SPECIFIED, expiration);
+   bool result = m_trade.SellStop(lot_size, entry_price, _Symbol, stop_loss, take_profit, ORDER_TIME_SPECIFIED, expiration);
+   if(result)
+   {
+      m_lastResultOrder = m_trade.ResultOrder();
+   }
+   return result;
 }
 
 //+------------------------------------------------------------------+
@@ -229,46 +218,6 @@ bool CTradeManager::ModifyPosition(ulong ticket, double stop_loss, double take_p
 bool CTradeManager::ClosePosition(ulong ticket)
 {
    return m_trade.PositionClose(ticket);
-}
-
-//+------------------------------------------------------------------+
-//| Get positions count                                              |
-//+------------------------------------------------------------------+
-int CTradeManager::GetPositionsCount(void)
-{
-   int count = 0;
-   
-   for(int i = PositionsTotal() - 1; i >= 0; i--)
-   {
-      CPositionInfo pos;
-      if(pos.SelectByIndex(i))
-      {
-         if(pos.Magic() == m_magicNumber && pos.Symbol() == _Symbol)
-            count++;
-      }
-   }
-   
-   return count;
-}
-
-//+------------------------------------------------------------------+
-//| Get orders count                                                 |
-//+------------------------------------------------------------------+
-int CTradeManager::GetOrdersCount(void)
-{
-   int count = 0;
-   
-   for(int i = OrdersTotal() - 1; i >= 0; i--)
-   {
-      COrderInfo order;
-      if(order.SelectByIndex(i))
-      {
-         if(order.Magic() == m_magicNumber && order.Symbol() == _Symbol)
-            count++;
-      }
-   }
-   
-   return count;
 }
 
 //+------------------------------------------------------------------+
